@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Figma Emoji SVG Converter
 
-## Getting Started
+<div align="center">
+  <h3>Transform Figma emoji SVGs into properly rendered foreignObject elements</h3>
+  <p>Created with ❤️ by <b>zombcat</b></p>
+</div>
 
-First, run the development server:
+## 🎨 Features
 
+- **Convert Figma Emoji SVGs**: Transform emoji SVGs from Figma into properly rendered foreignObject elements for better compatibility
+- **Multiple SVG Support**: Upload and convert multiple SVG files at once
+- **Automatic Layout**: Responsive design adapts to the number of SVG files being converted
+- **Individual & Batch Downloads**: Download individual SVGs or all converted SVGs at once as a ZIP file
+- **Easy to Use**: Simple drag-and-drop interface for uploading SVG files
+- **Beautiful UI**: Modern, clean interface with delightful animations
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 18.0.0 or later
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/pumpkinzomb/figma-emoji-svg-converter.git
+cd figma-emoji-svg-converter
+```
+
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Start the development server:
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 💻 Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Upload SVGs**: Drag and drop Figma emoji SVG files into the upload area or click to select files
+2. **Convert**: Click the "Convert to ForeignObject SVG" button to process all uploaded SVGs
+3. **Download**: 
+   - Click the download icon on individual SVGs to download them separately
+   - Use the "Download All" button to download all converted SVGs as a ZIP file
 
-## Learn More
+## ⚙️ How It Works
 
-To learn more about Next.js, take a look at the following resources:
+The app takes Figma emoji SVGs (which often contain text elements for emoji characters) and converts them into SVGs with foreignObject elements. This approach ensures better compatibility and consistent rendering across different platforms and browsers.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The conversion process:
+1. Parses the original SVG to extract emoji content
+2. Creates a new SVG with a foreignObject containing the emoji
+3. Presents the converted SVG for download
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🧩 Tech Stack
 
-## Deploy on Vercel
+- **Framework**: [Next.js](https://nextjs.org/) with React
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
+- **File Handling**: [react-dropzone](https://react-dropzone.js.org/)
+- **ZIP Processing**: [JSZip](https://stuk.github.io/jszip/)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🤝 Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgements
+
+- [Figma](https://www.figma.com/) for their amazing design tool
+- All the open-source libraries that made this project possible
+
+---
+
+<div align="center">
+  <p>Made with ❤️ by <b>zombcat</b></p>
+  <p>© 2024 zombcat. All rights reserved.</p>
+</div>
