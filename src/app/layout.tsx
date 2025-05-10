@@ -27,6 +27,22 @@ export const metadata: Metadata = {
       "Transform Figma emoji SVGs into properly rendered foreignObject elements for better compatibility",
     type: "website",
     siteName: "Figma Emoji SVG Converter",
+    images: [
+      {
+        url: "/screenshot.png",
+        width: 1200,
+        height: 630,
+        alt: "Figma Emoji SVG Converter Preview",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Figma Emoji SVG Converter",
+    description:
+      "Transform Figma emoji SVGs into properly rendered foreignObject elements for better compatibility",
+    images: ["/screenshot.png"],
+    creator: "@zombcat",
   },
 };
 
