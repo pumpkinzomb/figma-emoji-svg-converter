@@ -515,21 +515,12 @@ export default function Home() {
         <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center justify-center gap-1 mb-2">
             <HeartHandshake className="h-4 w-4 text-pink-500" />
-            <span>
-              Made with love by{" "}
-              <span className="font-medium text-purple-600 dark:text-purple-400">
-                zombcat
-              </span>{" "}
-              for Figma users
-            </span>
+            <span>Made with love for Figma users</span>
           </div>
           <div className="flex items-center justify-center mt-2 mb-1">
-            <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full p-1 mr-2">
+            <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full p-1">
               <Smile className="w-4 h-4 text-white" />
             </div>
-            <span className="font-medium bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-transparent bg-clip-text">
-              zombcat
-            </span>
           </div>
           <p className="opacity-70">
             Convert emoji SVGs from Figma into properly rendered foreignObject
