@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "scripts/emoji-worker.mjs": {
+      "memory": 1024,
+      "maxDuration": 10,
+      "includeFiles": "node_modules/**"
+    }
+  }
+}
