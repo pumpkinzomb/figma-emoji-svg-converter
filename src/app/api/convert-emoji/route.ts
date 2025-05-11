@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
 
     let fontBase64 = "";
     const fontFamily = "Noto Color Emoji";
-    let debugInfo: DebugInfo = {
+    const debugInfo: DebugInfo = {
       emojiDetails: emojiInfo,
     };
 
