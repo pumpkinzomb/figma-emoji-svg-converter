@@ -2,7 +2,11 @@
 const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
-      "/api/convert-emoji/**/*": ["scripts/**", "public/fonts/**"],
+      "/api/convert-emoji/**/*": [
+        "scripts/**",
+        "public/fonts/**",
+        "node_modules/**",
+      ],
     },
   },
 };
