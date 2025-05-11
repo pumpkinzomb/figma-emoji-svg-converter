@@ -26,6 +26,7 @@ interface SvgItem {
   id: string;
   content: string;
   convertedContent?: string;
+  error?: string;
 }
 
 export default function Home() {
@@ -84,11 +85,24 @@ export default function Home() {
   const convertToVectorSvg = async () => {
     if (svgItems.length === 0) return;
 
+    // 모든 항목이 이미 변환되었는지 확인
+    const allConverted = svgItems.every((item) => item.convertedContent);
+
+    // 모든 항목이 이미 변환된 경우, 바로 다운로드
+    if (allConverted) {
+      downloadAllSvgs(); // 이미 모두 변환되었다면 바로 다운로드 실행
+      return;
+    }
+
     setIsConverting(true);
+    let hasSuccessfulConversion = false;
+    let hasErrors = false;
+
     try {
       const convertedItems = await Promise.all(
         svgItems.map(async (item) => {
-          if (item.convertedContent) return item; // Skip if already converted
+          // 이미 변환된 항목은 건너뜀
+          if (item.convertedContent) return item;
 
           try {
             // Parse the SVG content
@@ -131,43 +145,98 @@ export default function Home() {
               body: JSON.stringify({ emoji: itemTextContent }),
             });
 
+            // API 응답이 200 OK가 아닌 경우
             if (!itemResponse.ok) {
-              const errorData = await itemResponse.json();
-              throw new Error(errorData.error || "Failed to convert emoji");
+              let errorMessage;
+              try {
+                // JSON 파싱 시도
+                const errorData = await itemResponse.json();
+                errorMessage =
+                  errorData.error || `Server error (${itemResponse.status})`;
+              } catch (jsonError) {
+                // JSON 파싱 실패 시 상태 코드 기반 에러 메시지 생성
+                errorMessage = `Server error (${itemResponse.status}): Failed to convert emoji`;
+              }
+
+              // 오류 정보를 포함하여 아이템 반환
+              hasErrors = true;
+              return {
+                ...item,
+                error: errorMessage,
+              };
             }
 
-            const data = await itemResponse.json();
+            // JSON 파싱 시도
+            let data;
+            try {
+              data = await itemResponse.json();
+            } catch (jsonError) {
+              hasErrors = true;
+              return {
+                ...item,
+                error: "Invalid response format from server",
+              };
+            }
 
             // Validate returned SVG content
             if (!data.svgContent || !data.svgContent.includes("<svg")) {
-              throw new Error("Invalid SVG data returned from server");
+              hasErrors = true;
+              return {
+                ...item,
+                error: "Invalid SVG data returned from server",
+              };
             }
 
+            // 성공적으로 변환된 경우
+            hasSuccessfulConversion = true;
             return {
               ...item,
               convertedContent: data.svgContent,
             };
           } catch (error) {
             console.error(`Error converting SVG ${item.id}:`, error);
-            toast({
-              title: "Error",
-              description:
+
+            // 오류 정보를 포함하여 아이템 반환
+            hasErrors = true;
+            return {
+              ...item,
+              error:
                 error instanceof Error
                   ? error.message
                   : "Failed to convert emoji",
-              variant: "destructive",
-            });
-            return item;
+            };
           }
         })
       );
 
       setSvgItems(convertedItems);
 
-      toast({
-        title: "Success",
-        description: "Emoji has been converted to SVG",
-      });
+      // 모든 항목이 변환되었는지 확인
+      const allItemsConverted = convertedItems.every(
+        (item) => item.convertedContent
+      );
+
+      if (hasSuccessfulConversion && hasErrors) {
+        toast({
+          title: "Partial Success",
+          description:
+            "Some emojis were converted, but others failed. Check console for details.",
+          variant: "default",
+        });
+      } else if (hasSuccessfulConversion) {
+        toast({
+          title: "Success",
+          description: allItemsConverted
+            ? "All emojis have been converted to SVG. Ready to download!"
+            : "Remaining emojis have been converted to SVG",
+        });
+      } else if (hasErrors) {
+        toast({
+          title: "Error",
+          description: "Failed to convert emojis. Check console for details.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Conversion error:", error);
       toast({
@@ -178,6 +247,64 @@ export default function Home() {
       });
     } finally {
       setIsConverting(false);
+    }
+  };
+
+  const getConvertButtonText = () => {
+    if (isConverting) {
+      return (
+        <span className="flex items-center">
+          <svg
+            className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          Converting...
+        </span>
+      );
+    }
+
+    // 모든 항목이 이미 변환되었는지 확인
+    const allConverted = svgItems.every((item) => item.convertedContent);
+    const someConverted = svgItems.some((item) => item.convertedContent);
+    const someNotConverted = svgItems.some((item) => !item.convertedContent);
+
+    if (allConverted) {
+      return (
+        <span className="flex items-center justify-center gap-2">
+          <Download className="w-5 h-5" />
+          Download All SVGs
+        </span>
+      );
+    } else if (someConverted && someNotConverted) {
+      return (
+        <span className="flex items-center justify-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          Convert Remaining SVGs
+        </span>
+      );
+    } else {
+      return (
+        <span className="flex items-center justify-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          Convert to ForeignObject SVG
+        </span>
+      );
     }
   };
 
@@ -257,7 +384,21 @@ export default function Home() {
     }
   };
 
-  // Calculate item size based on number of items
+  const resetConversion = () => {
+    setSvgItems((prevItems) =>
+      prevItems.map((item) => ({
+        ...item,
+        convertedContent: undefined,
+        error: undefined,
+      }))
+    );
+    toast({
+      title: "Reset Complete",
+      description:
+        "All SVGs have been reset and are ready to be converted again",
+    });
+  };
+
   const getItemSize = (itemCount: number) => {
     if (itemCount <= 1) return "h-32 w-32";
     if (itemCount <= 4) return "h-24 w-24";
@@ -444,6 +585,13 @@ export default function Home() {
                                       </svg>
                                       Converting
                                     </span>
+                                  ) : item.error ? (
+                                    <span
+                                      className="text-red-500"
+                                      title={item.error}
+                                    >
+                                      Error
+                                    </span>
                                   ) : (
                                     "Ready for conversion"
                                   )}
@@ -470,42 +618,44 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <Button
-                    onClick={convertToVectorSvg}
-                    disabled={isConverting}
-                    className="w-full h-14 text-base bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-md hover:shadow-lg transition-all"
-                  >
-                    {isConverting ? (
-                      <span className="flex items-center">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {/* 주 변환/다운로드 버튼 */}
+                    <Button
+                      onClick={convertToVectorSvg}
+                      disabled={isConverting}
+                      className="flex-1 h-14 text-base bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 shadow-md hover:shadow-lg transition-all"
+                    >
+                      {getConvertButtonText()}
+                    </Button>
+
+                    {/* Reset 버튼 - 최소 하나라도 변환된 경우에만 표시 */}
+                    {svgItems.some(
+                      (item) => item.convertedContent || item.error
+                    ) && (
+                      <Button
+                        onClick={resetConversion}
+                        disabled={isConverting}
+                        className="sm:w-auto h-14 text-base bg-white/20 backdrop-blur-sm border border-purple-200 text-purple-700 dark:text-purple-300 dark:border-purple-800/50 hover:bg-purple-100/30 dark:hover:bg-purple-900/30 shadow-sm hover:shadow-md transition-all"
+                      >
                         <svg
-                          className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
                           xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
+                          width="20"
+                          height="20"
                           viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mr-2 text-purple-500 dark:text-purple-400"
                         >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                          <path d="M3 3v5h5"></path>
                         </svg>
-                        Converting...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <Sparkles className="w-5 h-5" />
-                        Convert to ForeignObject SVG
-                      </span>
+                        Reset
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </div>
               </>
             )}

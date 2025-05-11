@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.13",
     "@radix-ui/react-label": "^2.1.6",
     "@radix-ui/react-progress": "^1.1.6",
@@ -17,14 +18,19 @@
     "@radix-ui/react-toast": "^1.2.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fonteditor-core": "^2.4.1",
+    "fontmin": "^2.0.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.508.0",
     "next": "14.2.16",
+    "node-fetch": "^3.3.2",
+    "opentype.js": "^1.3.4",
     "react": "^18",
     "react-dom": "^18",
     "react-dropzone": "^14.3.8",
     "tailwind-merge": "^3.2.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "wawoff2": "^2.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",
