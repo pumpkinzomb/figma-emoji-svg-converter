@@ -137,7 +137,7 @@ export default function Home() {
             }
 
             // Call API to convert emoji to SVG with foreignObject
-            const itemResponse = await fetch("/api/convert-emoji", {
+            const itemResponse = await fetch("/api/convert-emoji-v2", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
