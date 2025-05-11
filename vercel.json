@@ -2,8 +2,7 @@
   "functions": {
     "src/app/api/convert-emoji/**/*": {
       "memory": 1024,
-      "maxDuration": 10,
-      "includeFiles": "scripts/**,node_modules/@pdf-lib/**,node_modules/fonteditor-core/**,node_modules/wawoff2/**,public/fonts/**"
+      "maxDuration": 60
     }
   }
 }
