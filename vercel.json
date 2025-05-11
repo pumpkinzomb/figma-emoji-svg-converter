@@ -3,7 +3,7 @@
     "src/app/api/convert-emoji/**/*": {
       "memory": 1024,
       "maxDuration": 10,
-      "includeFiles": ["scripts/**/*", "node_modules/**/*", "public/fonts/**/*"]
+      "includeFiles": "scripts/**,node_modules/**,public/fonts/**"
     }
   }
 }
