@@ -1,9 +1,9 @@
 {
   "functions": {
-    "scripts/emoji-worker.mjs": {
+    "src/app/api/convert-emoji/**/*": {
       "memory": 1024,
       "maxDuration": 10,
-      "includeFiles": "node_modules/**"
+      "includeFiles": ["scripts/**/*", "node_modules/**/*", "public/fonts/**/*"]
     }
   }
 }
