@@ -29,6 +29,8 @@ interface SvgItem {
   id: string;
   content: string;
   convertedContent?: string;
+  fontData?: string;
+  fontFileName?: string;
   error?: string;
 }
 
@@ -38,8 +40,7 @@ type ConversionType = "foreignObject" | "png";
 export default function Home() {
   const [svgItems, setSvgItems] = useState<SvgItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [conversionType, setConversionType] =
-    useState<ConversionType>("foreignObject");
+  const [conversionType, setConversionType] = useState<ConversionType>("png");
   const { toast } = useToast();
 
   const onDrop = useCallback(
@@ -218,6 +219,8 @@ export default function Home() {
             return {
               ...item,
               convertedContent: data.svgContent,
+              fontData: data.fontData || null,
+              fontFileName: data.fontFileName || null,
             };
           } catch (error) {
             console.error(`Error converting SVG ${item.id}:`, error);
@@ -346,15 +349,61 @@ export default function Home() {
     }
   };
 
-  const downloadSvg = (svgContent: string, index: number) => {
-    const link = document.createElement("a");
-    const blob = new Blob([svgContent], { type: "image/svg+xml" });
-    link.href = URL.createObjectURL(blob);
-    link.download = `emoji-${index + 1}.svg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+  const downloadSvg = async (
+    svgContent: string,
+    fontData: string | undefined | null,
+    fontFileName: string | undefined | null,
+    index: number
+  ) => {
+    // 폰트 데이터가 없으면 SVG만 다운로드
+    if (!fontData) {
+      const link = document.createElement("a");
+      const blob = new Blob([svgContent], { type: "image/svg+xml" });
+      link.href = URL.createObjectURL(blob);
+      link.download = `emoji-${index + 1}.svg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+      return;
+    }
+
+    // 폰트 데이터가 있으면 ZIP으로 묶어 다운로드
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+
+      // SVG 파일 추가
+      zip.file(`emoji-${index + 1}.svg`, svgContent);
+
+      // 폰트 파일 추가 (Base64 디코딩)
+      const fontBuffer = Buffer.from(fontData, "base64");
+      const actualFontFileName =
+        fontFileName || `emoji-${index + 1}-font.woff2`;
+      zip.file(actualFontFileName, fontBuffer, { binary: true });
+
+      // ZIP 생성 및 다운로드
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `emoji-${index + 1}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      toast({
+        title: "Success",
+        description: "SVG and font files have been downloaded as a ZIP file",
+      });
+    } catch (error) {
+      console.error("Error creating ZIP file:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create ZIP file for download",
+        variant: "destructive",
+      });
+    }
   };
 
   const downloadAllSvgs = () => {
@@ -372,7 +421,12 @@ export default function Home() {
 
     // 단일 SVG인 경우 바로 다운로드
     if (convertedItems.length === 1) {
-      downloadSvg(convertedItems[0].convertedContent!, 0);
+      downloadSvg(
+        convertedItems[0].convertedContent!,
+        convertedItems[0].fontData,
+        convertedItems[0].fontFileName,
+        0
+      );
       return;
     }
 
@@ -382,9 +436,27 @@ export default function Home() {
         .then(({ default: JSZip }) => {
           const zip = new JSZip();
 
+          // 폰트 파일들을 추적하기 위한 Set
+          const processedFonts = new Set<string>();
+
           convertedItems.forEach((item, index) => {
             if (item.convertedContent) {
+              // SVG 파일 추가
               zip.file(`emoji-${index + 1}.svg`, item.convertedContent);
+
+              // 폰트 파일이 있으면 추가 (중복 방지)
+              if (item.fontData && !processedFonts.has(item.fontData)) {
+                try {
+                  const fontBuffer = Buffer.from(item.fontData, "base64");
+                  // 폰트 파일 이름 사용 또는 기본값 생성
+                  const fontFileName =
+                    item.fontFileName || `emoji-${index + 1}-font.woff2`;
+                  zip.file(fontFileName, fontBuffer, { binary: true });
+                  processedFonts.add(item.fontData);
+                } catch (fontError) {
+                  console.error("Error processing font data:", fontError);
+                }
+              }
             }
           });
 
@@ -401,7 +473,7 @@ export default function Home() {
 
           toast({
             title: "Success",
-            description: `${convertedItems.length} SVGs have been downloaded as a ZIP file`,
+            description: `${convertedItems.length} SVGs and their font files have been downloaded as a ZIP file`,
           });
         })
         .catch((error) => {
@@ -500,19 +572,6 @@ export default function Home() {
                 className="flex flex-col sm:flex-row gap-4"
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="foreignObject" id="foreignObject" />
-                  <label
-                    htmlFor="foreignObject"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1"
-                  >
-                    <Code className="w-4 h-4 text-purple-500" />
-                    ForeignObject SVG
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                      (Vector)
-                    </span>
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
                   <RadioGroupItem value="png" id="png" />
                   <label
                     htmlFor="png"
@@ -522,6 +581,19 @@ export default function Home() {
                     PNG SVG
                     <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
                       (Raster)
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="foreignObject" id="foreignObject" />
+                  <label
+                    htmlFor="foreignObject"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1"
+                  >
+                    <Code className="w-4 h-4 text-purple-500" />
+                    ForeignObject SVG
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                      (Vector)
                     </span>
                   </label>
                 </div>
@@ -638,7 +710,12 @@ export default function Home() {
                                     size="icon"
                                     variant="ghost"
                                     onClick={() =>
-                                      downloadSvg(item.convertedContent!, index)
+                                      downloadSvg(
+                                        item.convertedContent!,
+                                        item.fontData,
+                                        item.fontFileName,
+                                        index
+                                      )
                                     }
                                     className="absolute bottom-0 right-0 h-6 w-6 rounded-full bg-pink-500 text-white opacity-0 hover:text-white group-hover:opacity-100 transition-opacity shadow-sm hover:bg-pink-600 mr-2 mb-2"
                                     title="Download SVG"

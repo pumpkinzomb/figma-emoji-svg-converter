@@ -241,16 +241,17 @@ async function createEmojiSubset(emoji: string): Promise<string> {
 // SVG 생성 함수
 const createSvgWithFont = (
   emoji: string,
-  fontBase64: string,
+  fontFamily: string = "EmojiSubset",
   width: number = 72,
-  height: number = 72
+  height: number = 72,
+  fontFileName: string = "emoji-font.woff2"
 ): string => {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
     <style type="text/css">
       @font-face {
-        font-family: 'EmojiSubset';
-        src: url(data:font/woff2;base64,${fontBase64}) format('woff2');
+        font-family: '${fontFamily}';
+        src: url('./${fontFileName}') format('woff2');
         font-display: swap;
       }
     </style>
@@ -258,7 +259,7 @@ const createSvgWithFont = (
   <foreignObject x="0" y="0" width="${width}" height="${height}">
     <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: ${
       height * 0.7
-    }px; font-family: 'EmojiSubset';">${emoji}</div>
+    }px; font-family: '${fontFamily}';">${emoji}</div>
   </foreignObject>
 </svg>`;
 };
@@ -350,11 +351,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // 고유한 폰트 파일 이름 생성
+    const fontFileName = `emoji-font-${Date.now()}.woff2`;
+
     // SVG 생성
-    const svgContent = createSvgWithFont(emoji, fontBase64, width, height);
+    const svgContent = createSvgWithFont(
+      emoji,
+      "EmojiSubset",
+      width,
+      height,
+      fontFileName
+    );
 
     return NextResponse.json({
       svgContent,
+      fontData: fontBase64,
+      fontFileName,
       fontProcessed: true,
       fontFamily: "EmojiSubset",
       debug: debugInfo,
