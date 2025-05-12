@@ -239,8 +239,13 @@ async function createEmojiSubset(emoji: string): Promise<string> {
 }
 
 // SVG 생성 함수
-const createSvgWithFont = (emoji: string, fontBase64: string): string => {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+const createSvgWithFont = (
+  emoji: string,
+  fontBase64: string,
+  width: number = 72,
+  height: number = 72
+): string => {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
     <style type="text/css">
       @font-face {
@@ -250,25 +255,34 @@ const createSvgWithFont = (emoji: string, fontBase64: string): string => {
       }
     </style>
   </defs>
-  <foreignObject x="0" y="0" width="72" height="72">
-    <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 50px; font-family: 'EmojiSubset';">${emoji}</div>
+  <foreignObject x="0" y="0" width="${width}" height="${height}">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: ${
+      height * 0.7
+    }px; font-family: 'EmojiSubset';">${emoji}</div>
   </foreignObject>
 </svg>`;
 };
 
 // 폴백 SVG 생성 함수
-const createSimpleSvg = (emoji: string): string => {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
-  <foreignObject x="0" y="0" width="72" height="72">
-    <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 50px; font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">${emoji}</div>
+const createSimpleSvg = (
+  emoji: string,
+  width: number = 72,
+  height: number = 72
+): string => {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <foreignObject x="0" y="0" width="${width}" height="${height}">
+    <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: ${
+      height * 0.7
+    }px; font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">${emoji}</div>
   </foreignObject>
 </svg>`;
 };
 
 export async function POST(request: NextRequest) {
   try {
-    const { emoji } = await request.json();
+    const { emoji, width = 72, height = 72 } = await request.json();
     console.log("Received emoji:", emoji);
+    console.log(`SVG dimensions: ${width}x${height}`);
 
     // 수신한 이모지의 코드포인트 정보 로깅
     const emojiInfo = debugEmoji(emoji);
@@ -315,7 +329,7 @@ export async function POST(request: NextRequest) {
 
         // 폰트 처리 실패 시 간단한 SVG 생성으로 폴백
         return NextResponse.json({
-          svgContent: createSimpleSvg(emoji),
+          svgContent: createSimpleSvg(emoji, width, height),
           fontProcessed: false,
           fontFamily: fontFamily,
           debug: debugInfo,
@@ -329,7 +343,7 @@ export async function POST(request: NextRequest) {
 
     if (!hasFontSubset) {
       return NextResponse.json({
-        svgContent: createSimpleSvg(emoji),
+        svgContent: createSimpleSvg(emoji, width, height),
         fontProcessed: false,
         fontFamily: fontFamily,
         debug: debugInfo,
@@ -337,7 +351,7 @@ export async function POST(request: NextRequest) {
     }
 
     // SVG 생성
-    const svgContent = createSvgWithFont(emoji, fontBase64);
+    const svgContent = createSvgWithFont(emoji, fontBase64, width, height);
 
     return NextResponse.json({
       svgContent,

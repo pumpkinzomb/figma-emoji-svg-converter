@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   UploadIcon,
   DownloadIcon,
@@ -20,6 +21,8 @@ import {
   Smile,
   HeartHandshake,
   Download,
+  Image,
+  Code,
 } from "lucide-react";
 
 interface SvgItem {
@@ -29,9 +32,14 @@ interface SvgItem {
   error?: string;
 }
 
+// SVG 변환 타입 정의
+type ConversionType = "foreignObject" | "png";
+
 export default function Home() {
   const [svgItems, setSvgItems] = useState<SvgItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [conversionType, setConversionType] =
+    useState<ConversionType>("foreignObject");
   const { toast } = useToast();
 
   const onDrop = useCallback(
@@ -121,6 +129,14 @@ export default function Home() {
               );
             }
 
+            // SVG 크기 추출
+            const width = parseInt(
+              itemSvgElement.getAttribute("width") || "72"
+            );
+            const height = parseInt(
+              itemSvgElement.getAttribute("height") || "72"
+            );
+
             // Get the text content - 텍스트 요소 또는 tspan 요소 확인
             const itemTextElement = itemSvgElement.querySelector("text, tspan");
             if (!itemTextElement) {
@@ -136,13 +152,23 @@ export default function Home() {
               );
             }
 
-            // Call API to convert emoji to SVG with foreignObject
-            const itemResponse = await fetch("/api/convert-emoji-v2", {
+            // 선택한 변환 타입에 따라 API 엔드포인트 선택
+            const apiEndpoint =
+              conversionType === "foreignObject"
+                ? "/api/convert-emoji-v2"
+                : "/api/convert-emoji-png";
+
+            // Call API to convert emoji to SVG
+            const itemResponse = await fetch(apiEndpoint, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ emoji: itemTextContent }),
+              body: JSON.stringify({
+                emoji: itemTextContent,
+                width: width,
+                height: height,
+              }),
             });
 
             // API 응답이 200 OK가 아닌 경우
@@ -299,10 +325,22 @@ export default function Home() {
         </span>
       );
     } else {
+      const icon =
+        conversionType === "foreignObject" ? (
+          <Code className="w-5 h-5" />
+        ) : (
+          <Image className="w-5 h-5" />
+        );
+
+      const text =
+        conversionType === "foreignObject"
+          ? "Convert to ForeignObject SVG"
+          : "Convert to PNG SVG";
+
       return (
         <span className="flex items-center justify-center gap-2">
           <Sparkles className="w-5 h-5" />
-          Convert to ForeignObject SVG
+          {text}
         </span>
       );
     }
@@ -419,8 +457,8 @@ export default function Home() {
             Figma Emoji SVG Converter
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-3 text-lg max-w-lg mx-auto">
-            Transform Figma emoji SVGs into properly rendered foreignObject
-            elements for better compatibility
+            Transform Figma emoji SVGs into properly rendered SVG elements for
+            better compatibility
           </p>
           <div className="mt-4 flex justify-center text-2xl space-x-2">
             <span>😊</span>
@@ -448,6 +486,53 @@ export default function Home() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* 변환 옵션 선택 */}
+            <div className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-4 border border-purple-100 dark:border-purple-800/50">
+              <h3 className="font-medium text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-yellow-400" />
+                Conversion Options
+              </h3>
+              <RadioGroup
+                value={conversionType}
+                onValueChange={(value) =>
+                  setConversionType(value as ConversionType)
+                }
+                className="flex flex-col sm:flex-row gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="foreignObject" id="foreignObject" />
+                  <label
+                    htmlFor="foreignObject"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1"
+                  >
+                    <Code className="w-4 h-4 text-purple-500" />
+                    ForeignObject SVG
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                      (Vector)
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="png" id="png" />
+                  <label
+                    htmlFor="png"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1"
+                  >
+                    <Image className="w-4 h-4 text-pink-500" />
+                    PNG SVG
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                      (Raster)
+                    </span>
+                  </label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                {conversionType === "foreignObject"
+                  ? "ForeignObject SVG is a vector format that stays sharp when scaled, but may have compatibility issues in some environments."
+                  : "PNG SVG is a raster image that's compatible with all environments, but may lose quality when scaled."}
+              </p>
+            </div>
+
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-8 transition-all duration-300 ease-in-out cursor-pointer relative 
@@ -527,7 +612,9 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-yellow-400" />
                         <h3 className="font-medium text-pink-600 dark:text-pink-300">
-                          Converted ForeignObject SVGs
+                          {conversionType === "foreignObject"
+                            ? "Converted ForeignObject SVGs"
+                            : "Converted PNG SVGs"}
                         </h3>
                       </div>
                       <div className="bg-gradient-to-br from-pink-50 to-blue-50 dark:from-pink-950/40 dark:to-blue-950/40 rounded-xl border border-pink-100 dark:border-pink-900 p-6 shadow-inner relative">
@@ -673,8 +760,7 @@ export default function Home() {
             </div>
           </div>
           <p className="opacity-70">
-            Convert emoji SVGs from Figma into properly rendered foreignObject
-            elements
+            Convert emoji SVGs from Figma into properly rendered SVG elements
           </p>
           <p className="text-xs mt-4">
             &copy; {new Date().getFullYear()} zombcat. All rights reserved.
