@@ -115,45 +115,42 @@ export default function Home() {
     >
   >(new Map());
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles.length === 0) return;
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
 
-      const promises = acceptedFiles.map((file) => {
-        if (file.type === "image/svg+xml") {
-          return new Promise<SvgItem>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const content = e.target?.result as string;
-              resolve({
-                id: `svg-${Date.now()}-${Math.random()
-                  .toString(36)
-                  .substr(2, 9)}`,
-                content,
-              });
-            };
-            reader.onerror = reject;
-            reader.readAsText(file);
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: `File ${file.name} is not a valid SVG file`,
-            variant: "destructive",
-          });
-          return Promise.resolve(null);
-        }
-      });
+    const promises = acceptedFiles.map((file) => {
+      if (file.type === "image/svg+xml") {
+        return new Promise<SvgItem>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const content = e.target?.result as string;
+            resolve({
+              id: `svg-${Date.now()}-${Math.random()
+                .toString(36)
+                .substring(2, 11)}`,
+              content,
+            });
+          };
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `File ${file.name} is not a valid SVG file`,
+          variant: "destructive",
+        });
+        return Promise.resolve(null);
+      }
+    });
 
-      Promise.all(promises).then((results) => {
-        const validResults = results.filter(Boolean) as SvgItem[];
-        if (validResults.length > 0) {
-          setSvgItems((prev) => [...prev, ...validResults]);
-        }
-      });
-    },
-    [toast]
-  );
+    Promise.all(promises).then((results) => {
+      const validResults = results.filter(Boolean) as SvgItem[];
+      if (validResults.length > 0) {
+        setSvgItems((prev) => [...prev, ...validResults]);
+      }
+    });
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -168,8 +165,6 @@ export default function Home() {
 
     // 모든 항목이 이미 변환되었는지 확인
     const allConverted = svgItems.every((item) => item.convertedContent);
-
-    // 모든 항목이 이미 변환된 경우, 바로 다운로드
     if (allConverted) {
       downloadAllSvgs(); // 이미 모두 변환되었다면 바로 다운로드 실행
       return;
@@ -184,15 +179,15 @@ export default function Home() {
     // 변환이 필요한 항목들만 필터링
     const itemsToConvert = svgItems.filter((item) => !item.convertedContent);
     const totalItems = itemsToConvert.length;
-    let completedItems = 0;
 
     try {
-      // Promise.all 대신 순차 처리로 변경하여 진행 상태 업데이트
       const updatedItems = [...svgItems];
+      let completedItems = 0;
 
-      for (const item of itemsToConvert) {
+      // 각 프로미스 생성 및 실행
+      const promises = itemsToConvert.map(async (item) => {
         const index = updatedItems.findIndex((i) => i.id === item.id);
-        if (index === -1) continue;
+        if (index === -1) return;
 
         try {
           // Parse the SVG content
@@ -239,12 +234,13 @@ export default function Home() {
               fontFileName: cachedResult.fontFileName || null,
             };
 
+            // 진행 상태 및 UI 업데이트
             completedItems++;
             setConversionProgress(
               Math.round((completedItems / totalItems) * 100)
             );
             setSvgItems([...updatedItems]);
-            continue;
+            return;
           }
 
           // 선택한 변환 타입에 따라 API 엔드포인트 선택
@@ -297,12 +293,13 @@ export default function Home() {
               error: errorMessage,
             };
 
+            // 진행 상태 및 UI 업데이트
             completedItems++;
             setConversionProgress(
               Math.round((completedItems / totalItems) * 100)
             );
             setSvgItems([...updatedItems]);
-            continue;
+            return;
           }
 
           // JSON 파싱 시도
@@ -316,12 +313,13 @@ export default function Home() {
               error: "Invalid response format from server",
             };
 
+            // 진행 상태 및 UI 업데이트
             completedItems++;
             setConversionProgress(
               Math.round((completedItems / totalItems) * 100)
             );
             setSvgItems([...updatedItems]);
-            continue;
+            return;
           }
 
           // Validate returned SVG content
@@ -332,12 +330,13 @@ export default function Home() {
               error: "Invalid SVG data returned from server",
             };
 
+            // 진행 상태 및 UI 업데이트
             completedItems++;
             setConversionProgress(
               Math.round((completedItems / totalItems) * 100)
             );
             setSvgItems([...updatedItems]);
-            continue;
+            return;
           }
 
           // 캐시에 변환 결과 저장
@@ -373,10 +372,14 @@ export default function Home() {
           };
         }
 
+        // 진행 상태 및 UI 업데이트
         completedItems++;
         setConversionProgress(Math.round((completedItems / totalItems) * 100));
         setSvgItems([...updatedItems]);
-      }
+      });
+
+      // 모든 변환 작업이 완료될 때까지 대기
+      await Promise.all(promises);
 
       // 모든 항목이 변환되었는지 확인
       const allItemsConverted = updatedItems.every(
