@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,13 +38,8 @@ interface SvgItem {
 // SVG 변환 타입 정의
 type ConversionType = "foreignObject" | "png";
 
-// 폰트 로딩 상태를 추적하기 위한 변수
-let isNotoColorEmojiFontLoaded = false;
-
 // NotoColorEmoji 폰트를 로드하는 함수
 async function loadNotoColorEmojiFont(): Promise<boolean> {
-  if (isNotoColorEmojiFontLoaded) return true;
-
   try {
     const fontFace = new FontFace(
       "NotoColorEmoji",
@@ -53,46 +48,11 @@ async function loadNotoColorEmojiFont(): Promise<boolean> {
 
     await fontFace.load();
     document.fonts.add(fontFace);
-    isNotoColorEmojiFontLoaded = true;
+    console.log("NotoColorEmoji font loaded successfully");
     return true;
   } catch (error) {
     console.error("Error loading NotoColorEmoji font:", error);
     return false;
-  }
-}
-
-async function createEmojiPng(
-  emoji: string,
-  width: number = 160,
-  height: number = 160
-): Promise<string> {
-  // 폰트 로드 시도
-  const fontLoaded = await loadNotoColorEmojiFont();
-
-  // 임시 DOM 요소 생성
-  const element = document.createElement("div");
-  element.style.cssText = `
-    font-size: ${Math.min(width, height) * 0.75}px;
-    width: ${width}px;
-    height: ${height}px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: ${fontLoaded ? "'NotoColorEmoji'" : ""}, sans-serif;
-  `;
-  element.textContent = emoji;
-
-  // body에 요소 추가 (스타일 적용을 위해 필요)
-  document.body.appendChild(element);
-
-  try {
-    // html-to-image 라이브러리를 사용하여 PNG 데이터 URL 생성
-    const dataUrl = await htmlToImage.toPng(element);
-    // Base64 데이터 부분만 추출 (data:image/png;base64, 부분 제거)
-    return dataUrl.split(",")[1];
-  } finally {
-    // 임시 요소 제거
-    document.body.removeChild(element);
   }
 }
 
@@ -101,7 +61,42 @@ export default function Home() {
   const [isConverting, setIsConverting] = useState(false);
   const [conversionType, setConversionType] = useState<ConversionType>("png");
   const [conversionProgress, setConversionProgress] = useState(0);
+  const [fontLoaded, setFontLoaded] = useState(false);
   const { toast } = useToast();
+
+  // 페이지 로드시 폰트 미리 로드
+  useEffect(() => {
+    const loadFont = async () => {
+      try {
+        const loaded = await loadNotoColorEmojiFont();
+        setFontLoaded(loaded);
+        if (loaded) {
+          // Apply NotoColorEmoji font to emoji elements throughout the page
+          const styleEl = document.createElement("style");
+          styleEl.textContent = `
+            .emoji-text {
+              font-family: 'NotoColorEmoji', sans-serif;
+            }
+          `;
+          document.head.appendChild(styleEl);
+
+          toast({
+            title: "Font Loaded",
+            description: "NotoColorEmoji font loaded successfully",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load NotoColorEmoji font:", error);
+        toast({
+          title: "Font Loading Error",
+          description: "Failed to load NotoColorEmoji font",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadFont();
+  }, []);
 
   // 변환 결과 캐싱을 위한 상태
   const [conversionCache, setConversionCache] = useState<
@@ -114,6 +109,38 @@ export default function Home() {
       }
     >
   >(new Map());
+
+  async function createEmojiPng(
+    emoji: string,
+    width: number = 160,
+    height: number = 160
+  ): Promise<string> {
+    // 폰트는 페이지 로드 시 이미 로드되었을 것이므로 추가 확인만 함
+    const element = document.createElement("div");
+    element.style.cssText = `
+        font-size: ${Math.min(width, height) * 0.75}px;
+        width: ${width}px;
+        height: ${height}px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: ${fontLoaded ? "'NotoColorEmoji'" : ""}, sans-serif;
+      `;
+    element.textContent = emoji;
+
+    // body에 요소 추가 (스타일 적용을 위해 필요)
+    document.body.appendChild(element);
+
+    try {
+      // html-to-image 라이브러리를 사용하여 PNG 데이터 URL 생성
+      const dataUrl = await htmlToImage.toPng(element);
+      // Base64 데이터 부분만 추출 (data:image/png;base64, 부분 제거)
+      return dataUrl.split(",")[1];
+    } finally {
+      // 임시 요소 제거
+      document.body.removeChild(element);
+    }
+  }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -249,6 +276,7 @@ export default function Home() {
               ? "/api/convert-emoji-v2"
               : "/api/convert-emoji-png";
 
+          // 폰트는 이미 로드되었으므로 PNG 데이터만 가져오면 됨
           const pngBase64 = await createEmojiPng(itemTextContent);
           const params =
             conversionType === "png"
@@ -678,7 +706,7 @@ export default function Home() {
             Transform Figma emoji SVGs into properly rendered SVG elements for
             better compatibility
           </p>
-          <div className="mt-4 flex justify-center text-2xl space-x-2">
+          <div className="mt-4 flex justify-center text-2xl space-x-2 emoji-text">
             <span>😊</span>
             <span>👍</span>
             <span>🎨</span>
@@ -760,6 +788,7 @@ export default function Home() {
                     : "border-gray-200 dark:border-gray-700 hover:border-pink-300 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
                 }`}
             >
+              {" "}
               <input {...getInputProps()} />
               <div className="flex flex-col items-center justify-center gap-4">
                 <div className="relative">
@@ -982,8 +1011,8 @@ export default function Home() {
               <Smile className="w-4 h-4 text-white" />
             </div>
           </div>
-          <p className="opacity-70">
-            Convert emoji SVGs from Figma into properly rendered SVG elements
+          <p className="opacity-70 emoji-text">
+            Convert emoji SVGs from Figma into properly rendered SVG elements ✨
           </p>
           <p className="text-xs mt-4">
             &copy; {new Date().getFullYear()} zombcat. All rights reserved.
