@@ -274,16 +274,22 @@ const createSimpleSvg = (
   <foreignObject x="0" y="0" width="${width}" height="${height}">
     <div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: ${
       height * 0.7
-    }px; font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;">${emoji}</div>
+    }px;">${emoji}</div>
   </foreignObject>
 </svg>`;
 };
 
 export async function POST(request: NextRequest) {
   try {
-    const { emoji, width = 72, height = 72 } = await request.json();
+    const {
+      emoji,
+      width = 72,
+      height = 72,
+      includeFontData = false,
+    } = await request.json();
     console.log("Received emoji:", emoji);
     console.log(`SVG dimensions: ${width}x${height}`);
+    console.log(`Include font data: ${includeFontData}`);
 
     // 수신한 이모지의 코드포인트 정보 로깅
     const emojiInfo = debugEmoji(emoji);
@@ -291,6 +297,16 @@ export async function POST(request: NextRequest) {
 
     if (!emoji) {
       return NextResponse.json({ error: "Emoji is required" }, { status: 400 });
+    }
+
+    // 폰트 포함을 원하지 않는 경우 간단한 SVG만 반환
+    if (!includeFontData) {
+      return NextResponse.json({
+        svgContent: createSimpleSvg(emoji, width, height),
+        fontProcessed: false,
+        fontFamily: "System Emoji",
+        debug: { emojiDetails: emojiInfo, fontProcessed: false },
+      });
     }
 
     let fontBase64 = "";
