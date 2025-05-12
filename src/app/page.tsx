@@ -124,7 +124,7 @@ export default function Home() {
         display: flex;
         justify-content: center;
         align-items: center;
-        font-family: ${fontLoaded ? "'NotoColorEmoji'" : ""}, sans-serif;
+        font-family: 'NotoColorEmoji', sans-serif !important;
       `;
     element.textContent = emoji;
 
@@ -142,42 +142,94 @@ export default function Home() {
     }
   }
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length === 0) return;
 
-    const promises = acceptedFiles.map((file) => {
-      if (file.type === "image/svg+xml") {
-        return new Promise<SvgItem>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const content = e.target?.result as string;
-            resolve({
-              id: `svg-${Date.now()}-${Math.random()
-                .toString(36)
-                .substring(2, 11)}`,
-              content,
-            });
-          };
-          reader.onerror = reject;
-          reader.readAsText(file);
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: `File ${file.name} is not a valid SVG file`,
-          variant: "destructive",
-        });
-        return Promise.resolve(null);
-      }
-    });
+      const promises = acceptedFiles.map((file) => {
+        if (file.type === "image/svg+xml") {
+          return new Promise<SvgItem>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              let content = e.target?.result as string;
 
-    Promise.all(promises).then((results) => {
-      const validResults = results.filter(Boolean) as SvgItem[];
-      if (validResults.length > 0) {
-        setSvgItems((prev) => [...prev, ...validResults]);
-      }
-    });
-  }, []);
+              // SVG에서 텍스트 요소 찾아 Noto Color Emoji 폰트 적용
+              if (fontLoaded) {
+                // DOM Parser를 사용하여 SVG 파싱
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(content, "image/svg+xml");
+
+                // 텍스트 요소 선택
+                const textElements = svgDoc.querySelectorAll("text, tspan");
+
+                // 각 텍스트 요소에 폰트 적용
+                textElements.forEach((textElement) => {
+                  // 기존 폰트 패밀리 값이 있으면 저장
+                  const originalFontFamily =
+                    textElement.getAttribute("font-family");
+
+                  // Noto Color Emoji 폰트를 적용 (기존 폰트 값 보존)
+                  textElement.setAttribute(
+                    "font-family",
+                    `'NotoColorEmoji', ${originalFontFamily || "sans-serif"}`
+                  );
+
+                  // 폰트 스타일을 직접 요소에 삽입 (확실한 적용을 위해)
+                  const style = document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "style"
+                  );
+                  style.textContent = `
+                  @font-face {
+                    font-family: 'NotoColorEmoji';
+                    src: url('/fonts/NotoColorEmoji-Regular.ttf') format('truetype');
+                  }
+                  text, tspan {
+                    font-family: 'NotoColorEmoji', sans-serif !important;
+                  }
+                `;
+
+                  // SVG 루트 요소에 스타일 추가
+                  const svgRoot = svgDoc.documentElement;
+                  if (!svgRoot.querySelector("style")) {
+                    svgRoot.insertBefore(style, svgRoot.firstChild);
+                  }
+                });
+
+                // 수정된 SVG를 문자열로 직렬화
+                const serializer = new XMLSerializer();
+                content = serializer.serializeToString(svgDoc);
+              }
+
+              resolve({
+                id: `svg-${Date.now()}-${Math.random()
+                  .toString(36)
+                  .substring(2, 11)}`,
+                content,
+              });
+            };
+            reader.onerror = reject;
+            reader.readAsText(file);
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: `File ${file.name} is not a valid SVG file`,
+            variant: "destructive",
+          });
+          return Promise.resolve(null);
+        }
+      });
+
+      Promise.all(promises).then((results) => {
+        const validResults = results.filter(Boolean) as SvgItem[];
+        if (validResults.length > 0) {
+          setSvgItems((prev) => [...prev, ...validResults]);
+        }
+      });
+    },
+    [fontLoaded, toast]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -846,7 +898,7 @@ export default function Home() {
                                 dangerouslySetInnerHTML={{
                                   __html: item.content,
                                 }}
-                                className="w-full h-full flex items-center justify-center transform scale-75"
+                                className="w-full h-full flex items-center justify-center transform scale-75 emoji-text"
                               />
                             </div>
                           ))}
