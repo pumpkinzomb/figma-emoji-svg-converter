@@ -24,24 +24,96 @@ import {
   Image,
   Code,
 } from "lucide-react";
+import * as htmlToImage from "html-to-image";
 
 interface SvgItem {
   id: string;
   content: string;
   convertedContent?: string;
-  fontData?: string;
-  fontFileName?: string;
+  fontData?: string | null;
+  fontFileName?: string | null;
   error?: string;
 }
 
 // SVG 변환 타입 정의
 type ConversionType = "foreignObject" | "png";
 
+// 폰트 로딩 상태를 추적하기 위한 변수
+let isNotoColorEmojiFontLoaded = false;
+
+// NotoColorEmoji 폰트를 로드하는 함수
+async function loadNotoColorEmojiFont(): Promise<boolean> {
+  if (isNotoColorEmojiFontLoaded) return true;
+
+  try {
+    const fontFace = new FontFace(
+      "NotoColorEmoji",
+      `url('/fonts/NotoColorEmoji-Regular.ttf') format('truetype')`
+    );
+
+    await fontFace.load();
+    document.fonts.add(fontFace);
+    isNotoColorEmojiFontLoaded = true;
+    return true;
+  } catch (error) {
+    console.error("Error loading NotoColorEmoji font:", error);
+    return false;
+  }
+}
+
+async function createEmojiPng(
+  emoji: string,
+  width: number = 160,
+  height: number = 160
+): Promise<string> {
+  // 폰트 로드 시도
+  const fontLoaded = await loadNotoColorEmojiFont();
+
+  // 임시 DOM 요소 생성
+  const element = document.createElement("div");
+  element.style.cssText = `
+    font-size: ${Math.min(width, height) * 0.75}px;
+    width: ${width}px;
+    height: ${height}px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: ${fontLoaded ? "'NotoColorEmoji'" : ""}, sans-serif;
+  `;
+  element.textContent = emoji;
+
+  // body에 요소 추가 (스타일 적용을 위해 필요)
+  document.body.appendChild(element);
+
+  try {
+    // html-to-image 라이브러리를 사용하여 PNG 데이터 URL 생성
+    const dataUrl = await htmlToImage.toPng(element);
+    // Base64 데이터 부분만 추출 (data:image/png;base64, 부분 제거)
+    return dataUrl.split(",")[1];
+  } finally {
+    // 임시 요소 제거
+    document.body.removeChild(element);
+  }
+}
+
 export default function Home() {
   const [svgItems, setSvgItems] = useState<SvgItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const [conversionType, setConversionType] = useState<ConversionType>("png");
+  const [conversionProgress, setConversionProgress] = useState(0);
   const { toast } = useToast();
+
+  // 변환 결과 캐싱을 위한 상태
+  const [conversionCache, setConversionCache] = useState<
+    Map<
+      string,
+      {
+        svgContent: string;
+        fontData?: string | null;
+        fontFileName?: string | null;
+      }
+    >
+  >(new Map());
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -104,144 +176,210 @@ export default function Home() {
     }
 
     setIsConverting(true);
+    setConversionProgress(0);
+
     let hasSuccessfulConversion = false;
     let hasErrors = false;
 
+    // 변환이 필요한 항목들만 필터링
+    const itemsToConvert = svgItems.filter((item) => !item.convertedContent);
+    const totalItems = itemsToConvert.length;
+    let completedItems = 0;
+
     try {
-      const convertedItems = await Promise.all(
-        svgItems.map(async (item) => {
-          // 이미 변환된 항목은 건너뜀
-          if (item.convertedContent) return item;
+      // Promise.all 대신 순차 처리로 변경하여 진행 상태 업데이트
+      const updatedItems = [...svgItems];
 
-          try {
-            // Parse the SVG content
-            const itemParser = new DOMParser();
-            const itemSvgDoc = itemParser.parseFromString(
-              item.content,
-              "image/svg+xml"
+      for (const item of itemsToConvert) {
+        const index = updatedItems.findIndex((i) => i.id === item.id);
+        if (index === -1) continue;
+
+        try {
+          // Parse the SVG content
+          const itemParser = new DOMParser();
+          const itemSvgDoc = itemParser.parseFromString(
+            item.content,
+            "image/svg+xml"
+          );
+          const itemSvgElement = itemSvgDoc.documentElement;
+
+          // 입력된 SVG가 올바른지 확인
+          const itemParseError = itemSvgDoc.querySelector("parsererror");
+          if (itemParseError) {
+            throw new Error(
+              "Invalid SVG format. Please upload a valid SVG file."
             );
-            const itemSvgElement = itemSvgDoc.documentElement;
+          }
 
-            // 입력된 SVG가 올바른지 확인
-            const itemParseError = itemSvgDoc.querySelector("parsererror");
-            if (itemParseError) {
-              throw new Error(
-                "Invalid SVG format. Please upload a valid SVG file."
-              );
-            }
-
-            // SVG 크기 추출
-            const width = parseInt(
-              itemSvgElement.getAttribute("width") || "72"
+          // Get the text content - 텍스트 요소 또는 tspan 요소 확인
+          const itemTextElement = itemSvgElement.querySelector("text, tspan");
+          if (!itemTextElement) {
+            throw new Error(
+              "No text element found in SVG. This SVG might not contain an emoji."
             );
-            const height = parseInt(
-              itemSvgElement.getAttribute("height") || "72"
+          }
+
+          const itemTextContent = itemTextElement.textContent?.trim() || "";
+          if (!itemTextContent) {
+            throw new Error(
+              "Text content is empty. Please ensure the SVG contains emoji text."
             );
+          }
 
-            // Get the text content - 텍스트 요소 또는 tspan 요소 확인
-            const itemTextElement = itemSvgElement.querySelector("text, tspan");
-            if (!itemTextElement) {
-              throw new Error(
-                "No text element found in SVG. This SVG might not contain an emoji."
-              );
-            }
-
-            const itemTextContent = itemTextElement.textContent?.trim() || "";
-            if (!itemTextContent) {
-              throw new Error(
-                "Text content is empty. Please ensure the SVG contains emoji text."
-              );
-            }
-
-            // 선택한 변환 타입에 따라 API 엔드포인트 선택
-            const apiEndpoint =
-              conversionType === "foreignObject"
-                ? "/api/convert-emoji-v2"
-                : "/api/convert-emoji-png";
-
-            // Call API to convert emoji to SVG
-            const itemResponse = await fetch(apiEndpoint, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                emoji: itemTextContent,
-                width: width,
-                height: height,
-              }),
-            });
-
-            // API 응답이 200 OK가 아닌 경우
-            if (!itemResponse.ok) {
-              let errorMessage;
-              try {
-                // JSON 파싱 시도
-                const errorData = await itemResponse.json();
-                errorMessage =
-                  errorData.error || `Server error (${itemResponse.status})`;
-              } catch (jsonError) {
-                // JSON 파싱 실패 시 상태 코드 기반 에러 메시지 생성
-                errorMessage = `Server error (${itemResponse.status}): Failed to convert emoji`;
-              }
-
-              // 오류 정보를 포함하여 아이템 반환
-              hasErrors = true;
-              return {
-                ...item,
-                error: errorMessage,
-              };
-            }
-
-            // JSON 파싱 시도
-            let data;
-            try {
-              data = await itemResponse.json();
-            } catch (jsonError) {
-              hasErrors = true;
-              return {
-                ...item,
-                error: "Invalid response format from server",
-              };
-            }
-
-            // Validate returned SVG content
-            if (!data.svgContent || !data.svgContent.includes("<svg")) {
-              hasErrors = true;
-              return {
-                ...item,
-                error: "Invalid SVG data returned from server",
-              };
-            }
-
-            // 성공적으로 변환된 경우
+          // 캐시에 해당 이모지의 변환 결과가 있는지 확인
+          const cacheKey = `${itemTextContent}-${conversionType}`;
+          if (conversionCache.has(cacheKey)) {
+            const cachedResult = conversionCache.get(cacheKey)!;
             hasSuccessfulConversion = true;
-            return {
+
+            updatedItems[index] = {
               ...item,
-              convertedContent: data.svgContent,
-              fontData: data.fontData || null,
-              fontFileName: data.fontFileName || null,
+              convertedContent: cachedResult.svgContent,
+              fontData: cachedResult.fontData || null,
+              fontFileName: cachedResult.fontFileName || null,
             };
-          } catch (error) {
-            console.error(`Error converting SVG ${item.id}:`, error);
+
+            completedItems++;
+            setConversionProgress(
+              Math.round((completedItems / totalItems) * 100)
+            );
+            setSvgItems([...updatedItems]);
+            continue;
+          }
+
+          // 선택한 변환 타입에 따라 API 엔드포인트 선택
+          const apiEndpoint =
+            conversionType === "foreignObject"
+              ? "/api/convert-emoji-v2"
+              : "/api/convert-emoji-png";
+
+          const pngBase64 = await createEmojiPng(itemTextContent);
+          const params =
+            conversionType === "png"
+              ? {
+                  emoji: itemTextContent,
+                  width: 48,
+                  height: 48,
+                  pngBase64: pngBase64,
+                }
+              : {
+                  emoji: itemTextContent,
+                  width: 48,
+                  height: 48,
+                };
+
+          // Call API to convert emoji to SVG
+          const itemResponse = await fetch(apiEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(params),
+          });
+
+          // API 응답이 200 OK가 아닌 경우
+          if (!itemResponse.ok) {
+            let errorMessage;
+            try {
+              // JSON 파싱 시도
+              const errorData = await itemResponse.json();
+              errorMessage =
+                errorData.error || `Server error (${itemResponse.status})`;
+            } catch (jsonError) {
+              // JSON 파싱 실패 시 상태 코드 기반 에러 메시지 생성
+              errorMessage = `Server error (${itemResponse.status}): Failed to convert emoji`;
+            }
 
             // 오류 정보를 포함하여 아이템 반환
             hasErrors = true;
-            return {
+            updatedItems[index] = {
               ...item,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Failed to convert emoji",
+              error: errorMessage,
             };
-          }
-        })
-      );
 
-      setSvgItems(convertedItems);
+            completedItems++;
+            setConversionProgress(
+              Math.round((completedItems / totalItems) * 100)
+            );
+            setSvgItems([...updatedItems]);
+            continue;
+          }
+
+          // JSON 파싱 시도
+          let data;
+          try {
+            data = await itemResponse.json();
+          } catch (jsonError) {
+            hasErrors = true;
+            updatedItems[index] = {
+              ...item,
+              error: "Invalid response format from server",
+            };
+
+            completedItems++;
+            setConversionProgress(
+              Math.round((completedItems / totalItems) * 100)
+            );
+            setSvgItems([...updatedItems]);
+            continue;
+          }
+
+          // Validate returned SVG content
+          if (!data.svgContent || !data.svgContent.includes("<svg")) {
+            hasErrors = true;
+            updatedItems[index] = {
+              ...item,
+              error: "Invalid SVG data returned from server",
+            };
+
+            completedItems++;
+            setConversionProgress(
+              Math.round((completedItems / totalItems) * 100)
+            );
+            setSvgItems([...updatedItems]);
+            continue;
+          }
+
+          // 캐시에 변환 결과 저장
+          setConversionCache((prevCache) => {
+            const newCache = new Map(prevCache);
+            newCache.set(cacheKey, {
+              svgContent: data.svgContent,
+              fontData: data.fontData || null,
+              fontFileName: data.fontFileName || null,
+            });
+            return newCache;
+          });
+
+          // 성공적으로 변환된 경우
+          hasSuccessfulConversion = true;
+          updatedItems[index] = {
+            ...item,
+            convertedContent: data.svgContent,
+            fontData: data.fontData || null,
+            fontFileName: data.fontFileName || null,
+          };
+        } catch (error) {
+          console.error(`Error converting SVG ${item.id}:`, error);
+
+          // 오류 정보를 포함하여 아이템 반환
+          hasErrors = true;
+          updatedItems[index] = {
+            ...item,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to convert emoji",
+          };
+        }
+
+        completedItems++;
+        setConversionProgress(Math.round((completedItems / totalItems) * 100));
+        setSvgItems([...updatedItems]);
+      }
 
       // 모든 항목이 변환되었는지 확인
-      const allItemsConverted = convertedItems.every(
+      const allItemsConverted = updatedItems.every(
         (item) => item.convertedContent
       );
 
@@ -276,6 +414,7 @@ export default function Home() {
       });
     } finally {
       setIsConverting(false);
+      setConversionProgress(0);
     }
   };
 
@@ -303,7 +442,9 @@ export default function Home() {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          Converting...
+          {conversionProgress > 0
+            ? `Converting... ${conversionProgress}%`
+            : "Converting..."}
         </span>
       );
     }
@@ -502,6 +643,8 @@ export default function Home() {
         error: undefined,
       }))
     );
+    // 캐시도 초기화
+    setConversionCache(new Map());
     toast({
       title: "Reset Complete",
       description:
