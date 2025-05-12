@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,65 +38,14 @@ interface SvgItem {
 // SVG 변환 타입 정의
 type ConversionType = "foreignObject" | "png";
 
-// NotoColorEmoji 폰트를 로드하는 함수
-async function loadNotoColorEmojiFont(): Promise<boolean> {
-  try {
-    const fontFace = new FontFace(
-      "NotoColorEmoji",
-      `url('/fonts/NotoColorEmoji-Regular.ttf') format('truetype')`
-    );
-
-    await fontFace.load();
-    document.fonts.add(fontFace);
-    console.log("NotoColorEmoji font loaded successfully");
-    return true;
-  } catch (error) {
-    console.error("Error loading NotoColorEmoji font:", error);
-    return false;
-  }
-}
-
 export default function Home() {
   const [svgItems, setSvgItems] = useState<SvgItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const [conversionType, setConversionType] = useState<ConversionType>("png");
   const [conversionProgress, setConversionProgress] = useState(0);
-  const [fontLoaded, setFontLoaded] = useState(false);
   const { toast } = useToast();
 
-  // 페이지 로드시 폰트 미리 로드
-  useEffect(() => {
-    const loadFont = async () => {
-      try {
-        const loaded = await loadNotoColorEmojiFont();
-        setFontLoaded(loaded);
-        if (loaded) {
-          // Apply NotoColorEmoji font to emoji elements throughout the page
-          const styleEl = document.createElement("style");
-          styleEl.textContent = `
-            .emoji-text {
-              font-family: 'NotoColorEmoji', sans-serif;
-            }
-          `;
-          document.head.appendChild(styleEl);
-
-          toast({
-            title: "Font Loaded",
-            description: "NotoColorEmoji font loaded successfully",
-          });
-        }
-      } catch (error) {
-        console.error("Failed to load NotoColorEmoji font:", error);
-        toast({
-          title: "Font Loading Error",
-          description: "Failed to load NotoColorEmoji font",
-          variant: "destructive",
-        });
-      }
-    };
-
-    loadFont();
-  }, []);
+  // 페이지 로드시 스타일 추가
 
   // 변환 결과 캐싱을 위한 상태
   const [conversionCache, setConversionCache] = useState<
@@ -115,7 +64,6 @@ export default function Home() {
     width: number = 160,
     height: number = 160
   ): Promise<string> {
-    // 폰트는 페이지 로드 시 이미 로드되었을 것이므로 추가 확인만 함
     const element = document.createElement("div");
     element.style.cssText = `
         font-size: ${Math.min(width, height) * 0.75}px;
@@ -124,7 +72,6 @@ export default function Home() {
         display: flex;
         justify-content: center;
         align-items: center;
-        font-family: 'NotoColorEmoji', sans-serif !important;
       `;
     element.textContent = emoji;
 
@@ -142,94 +89,43 @@ export default function Home() {
     }
   }
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles.length === 0) return;
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
 
-      const promises = acceptedFiles.map((file) => {
-        if (file.type === "image/svg+xml") {
-          return new Promise<SvgItem>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              let content = e.target?.result as string;
+    const promises = acceptedFiles.map((file) => {
+      if (file.type === "image/svg+xml") {
+        return new Promise<SvgItem>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const content = e.target?.result as string;
 
-              // SVG에서 텍스트 요소 찾아 Noto Color Emoji 폰트 적용
-              if (fontLoaded) {
-                // DOM Parser를 사용하여 SVG 파싱
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(content, "image/svg+xml");
+            resolve({
+              id: `svg-${Date.now()}-${Math.random()
+                .toString(36)
+                .substring(2, 11)}`,
+              content,
+            });
+          };
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `File ${file.name} is not a valid SVG file`,
+          variant: "destructive",
+        });
+        return Promise.resolve(null);
+      }
+    });
 
-                // 텍스트 요소 선택
-                const textElements = svgDoc.querySelectorAll("text, tspan");
-
-                // 각 텍스트 요소에 폰트 적용
-                textElements.forEach((textElement) => {
-                  // 기존 폰트 패밀리 값이 있으면 저장
-                  const originalFontFamily =
-                    textElement.getAttribute("font-family");
-
-                  // Noto Color Emoji 폰트를 적용 (기존 폰트 값 보존)
-                  textElement.setAttribute(
-                    "font-family",
-                    `'NotoColorEmoji', ${originalFontFamily || "sans-serif"}`
-                  );
-
-                  // 폰트 스타일을 직접 요소에 삽입 (확실한 적용을 위해)
-                  const style = document.createElementNS(
-                    "http://www.w3.org/2000/svg",
-                    "style"
-                  );
-                  style.textContent = `
-                  @font-face {
-                    font-family: 'NotoColorEmoji';
-                    src: url('/fonts/NotoColorEmoji-Regular.ttf') format('truetype');
-                  }
-                  text, tspan {
-                    font-family: 'NotoColorEmoji', sans-serif !important;
-                  }
-                `;
-
-                  // SVG 루트 요소에 스타일 추가
-                  const svgRoot = svgDoc.documentElement;
-                  if (!svgRoot.querySelector("style")) {
-                    svgRoot.insertBefore(style, svgRoot.firstChild);
-                  }
-                });
-
-                // 수정된 SVG를 문자열로 직렬화
-                const serializer = new XMLSerializer();
-                content = serializer.serializeToString(svgDoc);
-              }
-
-              resolve({
-                id: `svg-${Date.now()}-${Math.random()
-                  .toString(36)
-                  .substring(2, 11)}`,
-                content,
-              });
-            };
-            reader.onerror = reject;
-            reader.readAsText(file);
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: `File ${file.name} is not a valid SVG file`,
-            variant: "destructive",
-          });
-          return Promise.resolve(null);
-        }
-      });
-
-      Promise.all(promises).then((results) => {
-        const validResults = results.filter(Boolean) as SvgItem[];
-        if (validResults.length > 0) {
-          setSvgItems((prev) => [...prev, ...validResults]);
-        }
-      });
-    },
-    [fontLoaded, toast]
-  );
+    Promise.all(promises).then((results) => {
+      const validResults = results.filter(Boolean) as SvgItem[];
+      if (validResults.length > 0) {
+        setSvgItems((prev) => [...prev, ...validResults]);
+      }
+    });
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -328,7 +224,7 @@ export default function Home() {
               ? "/api/convert-emoji-v2"
               : "/api/convert-emoji-png";
 
-          // 폰트는 이미 로드되었으므로 PNG 데이터만 가져오면 됨
+          // PNG 데이터 생성
           const pngBase64 = await createEmojiPng(itemTextContent);
           const params =
             conversionType === "png"
