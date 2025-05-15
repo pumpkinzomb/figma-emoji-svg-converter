@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +45,9 @@ export default function Home() {
   const [conversionProgress, setConversionProgress] = useState(0);
   const { toast } = useToast();
 
-  // 페이지 로드시 스타일 추가
+  useEffect(() => {
+    console.log("env:", process.env.VERCEL_ENV);
+  }, []);
 
   // 변환 결과 캐싱을 위한 상태
   const [conversionCache, setConversionCache] = useState<

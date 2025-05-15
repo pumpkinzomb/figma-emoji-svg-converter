@@ -51,7 +51,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log("env:", process.env.VERCEL_ENV);
   return (
     <html lang="en">
       <body className={inter.className}>
