@@ -9,6 +9,9 @@ const nextConfig = {
       ],
     },
   },
+  env: {
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  },
 };
 
 export default nextConfig;
